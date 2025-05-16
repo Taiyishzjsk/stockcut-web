@@ -21,7 +21,7 @@
               </div>
             </template>
             <template #right-icon>
-              <van-icon name="delete" class="delete-icon" @click.stop="removeMaterial(index)" />
+              <van-icon name="close" class="delete-icon" @click.stop="removeMaterial(index)" />
             </template>
           </van-cell>
         </template>
