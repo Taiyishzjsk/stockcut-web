@@ -1,6 +1,6 @@
 // dfs_cutting_solver.ts
 
-import { StockCutPlan, CutSummary, CutResult } from "./cutting_stock_types";
+import type { StockCutPlan, CutResult } from "./cutting_stock_types";
 
 
 export function solveCuttingProblemWithDFS(
@@ -144,6 +144,7 @@ class DFSStockCuttingSolver {
         timeLimit: number = 10000,
         maxIterations: number = 1000000
     ) {
+        this.startTime = Date.now();
         this.stockLengths = [...stockLengths].sort((a, b) => b - a);  // 从大到小排序
         this.orderLengths = [...orderLengths].sort((a, b) => b - a);  // 从大到小排序
         this.cutWidth = cutWidth;
@@ -452,7 +453,7 @@ class DFSStockCuttingSolver {
 
             console.log(`[INFO] 初始解: 使用 ${initialSolution.totalStocksUsed} 根原料，总废料 ${initialSolution.totalWaste}`);
         } catch (error) {
-            console.error(`[ERROR] 获取初始解失败: ${error.message}`);
+            console.error(`[ERROR] 获取初始解失败`);
             throw error;
         }
 
