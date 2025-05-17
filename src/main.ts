@@ -15,9 +15,9 @@ import {
     Tab,
     Tabs,
     Card,
-    Tag
+    Tag,
+    Notify
 } from 'vant';
-
 // 创建Vue应用
 const app = createApp(App);
 
@@ -37,6 +37,7 @@ app.use(Tab);
 app.use(Tabs);
 app.use(Card);
 app.use(Tag);
+app.use(Notify);
 
 // 挂载应用
 app.mount('#app');

@@ -45,7 +45,7 @@
               </div>
             </template>
             <template #right-icon>
-              <van-icon name="delete" class="delete-icon" @click.stop="removePart(index)" />
+              <van-icon name="close" class="delete-icon" @click.stop="removePart(index)" />
             </template>
           </van-cell>
         </template>
@@ -61,8 +61,8 @@
             label-width="100px"
             placeholder="请输入切口损耗"
             input-align="right"
-            right-icon="question-o"
-            @click-right-icon="showCuttingLossTooltip"
+            left-icon="question-o"
+            @click-left-icon="showCuttingLossTooltip"
         >
           <template #button>
             <span class="unit-text">mm</span>
@@ -76,46 +76,51 @@
           开始计算
         </van-button>
       </div>
+      <!-- 重置按钮 -->
+      <div class="action-buttons">
+        <van-button type="default" block round size="large" @click="openResetDialog">
+          重置
+        </van-button>
+      </div>
 
       <!-- 优化方案结果 -->
       <van-cell-group v-if="showResults" inset class="section results-container">
-        <van-tabs v-model:active="activeTab" animated swipeable>
-          <van-tab title="方案一" name="plan1">
-            <div class="plan-container">
-              <van-card
-                  v-for="(solution, index) in plan1"
-                  :key="'solution1-'+index"
-                  :title="`材料 ${index + 1} (${solution.length}mm)`"
-                  :desc="solution.parts"
-                  class="solution-card"
-              >
-                <template #tags>
-                  <van-tag type="primary" size="medium" round>利用率: {{ solution.utilizationRate }}%</van-tag>
-                </template>
-              </van-card>
-              <div class="total-rate">
-                材料总利用率: <span class="rate-value">{{ plan1UtilizationRate }}%</span>
-              </div>
-            </div>
-          </van-tab>
+          <van-tabs animated swipeable>
+            <van-tab title="优化结果">
+              <div class="plan-container">
+                <van-card
+                    v-for="(solution, index) in calculatedPlans"
+                    :key="'solution-'+index"
+                    :title="`材料 ${solution.length}mm (使用 ${solution.count} 根)`"
+                    :desc="solution.parts"
+                    class="solution-card"
+                >
+                  <template #tags>
+                    <van-tag type="primary" size="medium" round>利用率: {{ solution.utilizationRate }}%</van-tag>
+                    <van-tag type="danger" size="medium" round style="margin-left: 5px">浪费: {{ solution.waste }}mm/根</van-tag>
+                  </template>
+                </van-card>
 
-          <van-tab title="方案二" name="plan2">
-            <div class="plan-container">
-              <van-card
-                  v-for="(solution, index) in plan2"
-                  :key="'solution2-'+index"
-                  :title="`材料 ${index + 1} (${solution.length}mm)`"
-                  :desc="solution.parts"
-                  class="solution-card"
-              >
-                <template #tags>
-                  <van-tag type="success" size="medium" round>利用率: {{ solution.utilizationRate }}%</van-tag>
-                </template>
-              </van-card>
-              <div class="total-rate">
-                材料总利用率: <span class="rate-value">{{ plan2UtilizationRate }}%</span>
+                <div v-if="optimizationResult" class="summary-container">
+                  <div class="summary-title">汇总信息</div>
+                  <div class="summary-content">
+                    <div class="summary-item">
+                      <span class="item-label">总浪费:</span>
+                      <span class="item-value">{{ optimizationResult.summary.totalWaste }}mm</span>
+                    </div>
+                    <div class="summary-item">
+                      <span class="item-label">切口损耗:</span>
+                      <span class="item-value">{{ optimizationResult.summary.totalCutLoss }}mm</span>
+                    </div>
+                    <div class="summary-item">
+                      <span class="item-label">使用材料:</span>
+                      <span class="item-value">{{ optimizationResult.summary.totalStockUsed / 1000 }}m</span>
+                    </div>
+                  </div>
+                </div>
               </div>
-            </div>
+
+
           </van-tab>
         </van-tabs>
       </van-cell-group>
@@ -227,43 +232,138 @@
       </div>
     </van-dialog>
 
+  <!--重置确认对话框-->
+    <van-dialog
+        v-model:show="showResetConfirmDialog"
+        title="确认重置"
+        show-cancel-button
+        :close-on-click-overlay="false"
+        @confirm="resetForm"
+    >
+      <div style="padding: 16px;">
+        确定要重置所有输入吗？此操作将清空原材料、切割零件等信息。
+      </div>
+    </van-dialog>
     <!-- 全局消息提示 -->
     <van-toast id="van-toast" />
   </div>
 </template>
 
-<script setup>
-import { ref } from 'vue';
-import { showToast } from 'vant';
+<script setup lang="ts">
+import { ref, computed } from 'vue';
+import {showSuccessToast, showToast} from 'vant';
+import {solveCuttingProblem} from './utils/cutting_stock_solver_heuristic.ts'
+import type { StockCutPlan, CutResult} from './utils/cutting_stock_types.ts';
+import {showFailToast} from "vant/lib/toast/function-call";
+// 定义接口
+interface Material {
+  length: number;
+  quantity: number;
+}
+
+interface Part {
+  length: number;
+  quantity: number;
+}
+
+
+// 算法计算结果接口
+interface OptimizationResult {
+  plans: StockCutPlan[];
+  summary: {
+    totalStockUsed: number;
+    totalCutLoss: number;
+    totalWaste: number;
+    isOrderFulfilled: boolean;
+  };
+}
+
+// 转换后要展示的方案接口
+interface Solution {
+  length: number;
+  parts: string;
+  utilizationRate: number;
+  waste: number;
+  count: number;
+}
 
 // 数据
-const materials = ref([]);
-const parts = ref([]);
-const cuttingLoss = ref('3');
-const showMaterialPopup = ref(false);
-const showPartPopup = ref(false);
-const newMaterial = ref({ length: '', quantity: '' });
-const newPart = ref({ length: '', quantity: '' });
-const showResults = ref(false);
-const activeTab = ref('plan1');
-const plan1 = ref([]);
-const plan2 = ref([]);
-const plan1UtilizationRate = ref(0);
-const plan2UtilizationRate = ref(0);
-const showCuttingTooltip = ref(false);
+const materials = ref<Material[]>([]);
+const parts = ref<Part[]>([]);
+const cuttingLoss = ref<string>(null);
+const showMaterialPopup = ref<boolean>(false);
+const showPartPopup = ref<boolean>(false);
+const newMaterial = ref<{length: string; quantity: string}>({ length: '', quantity: '' });
+const newPart = ref<{length: string; quantity: string}>({ length: '', quantity: '' });
+const showResults = ref<boolean>(false);
+const optimizationResult = ref<OptimizationResult | null>(null);
+const showCuttingTooltip = ref<boolean>(false);
+const showResetConfirmDialog = ref<boolean>(false);
 
+function openResetDialog(): void {
+  showResetConfirmDialog.value = true;
+}
+
+function resetForm(): void {
+  // 清空原材料和切割零件列表
+  materials.value = [];
+  parts.value = [];
+
+  // 重置输入框中的切口长度为默认值
+  cuttingLoss.value = null;
+
+  // 隐藏计算结果
+  showResults.value = false;
+  optimizationResult.value = null;
+
+  showToast('已重置');
+}
+
+const calculatedPlans = computed<Solution[]>(() => {
+  if (!optimizationResult.value) return [];
+  const plans : StockCutPlan[] = optimizationResult.value.plans;
+  let temp: Solution[] = [];
+  for (const plan of plans) {
+    // 把切割方案改成 长度*数量 + 长度*数量的形式输出
+    let str : string = '';
+    for(let i=0;i<plan.cutLengths.length;i++){
+      str += `${plan.cutLengths[i]} * ${plan.cutCounts[i]}`;
+      if(i<plan.cutLengths.length-1){
+        str += ' + ';
+      }
+    }
+    let solution : Solution = {
+      length: plan.stockLength,
+      parts: str,
+      utilizationRate: plan.avgWaste,
+      waste: plan.totalWaste,
+      count: plan.count
+    };
+    temp.push(solution);
+  }
+  return temp;
+});
+// 输入数据
+let stockLengths: number[] = [];
+let stockCounts: number[] = [];
+let orderLengths: number[] = [];
+let orderCounts: number[] = [];
+let cutWidth: number = 0;
+
+// 输出数据
+let cutResult1: CutResult | null = null;
 // 方法
-function showAddMaterial() {
+function showAddMaterial(): void {
   newMaterial.value = { length: '', quantity: '' };
   showMaterialPopup.value = true;
 }
 
-function showAddPart() {
+function showAddPart(): void {
   newPart.value = { length: '', quantity: '' };
   showPartPopup.value = true;
 }
 
-function addMaterial() {
+function addMaterial(): void {
   if (newMaterial.value.length && newMaterial.value.quantity) {
     materials.value.push({
       length: Number(newMaterial.value.length),
@@ -275,7 +375,7 @@ function addMaterial() {
   }
 }
 
-function addPart() {
+function addPart(): void {
   if (newPart.value.length && newPart.value.quantity) {
     parts.value.push({
       length: Number(newPart.value.length),
@@ -287,76 +387,60 @@ function addPart() {
   }
 }
 
-function removeMaterial(index) {
+function removeMaterial(index: number): void {
   materials.value.splice(index, 1);
   showToast('已删除');
 }
 
-function removePart(index) {
+function removePart(index: number): void {
   parts.value.splice(index, 1);
   showToast('已删除');
 }
 
-function showCuttingLossTooltip() {
+function showCuttingLossTooltip(): void {
   showCuttingTooltip.value = true;
 }
 
 // 一维下料优化算法实现
-function optimizeCutting(stockLengths, partLengths, cutWidth) {
-  // 在这里实现真实的下料优化算法
-  // 这里只是一个模拟示例
 
-  // 返回两种优化方案
-  return {
-    plan1: [
-      {
-        length: stockLengths[0].length,
-        parts: '3x 500mm + 2x 300mm',
-        utilizationRate: 85
-      },
-      {
-        length: stockLengths[0].length,
-        parts: '2x 600mm + 1x 400mm',
-        utilizationRate: 80
-      }
-    ],
-    plan2: [
-      {
-        length: stockLengths[0].length,
-        parts: '2x 600mm + 1x 500mm',
-        utilizationRate: 90
-      },
-      {
-        length: stockLengths[0].length,
-        parts: '3x 400mm + 1x 300mm',
-        utilizationRate: 75
-      }
-    ],
-    plan1Rate: 83,
-    plan2Rate: 85
-  };
+
+function init(): void {
+  // 原材料长度列表和数量列表
+  stockLengths = materials.value.map(m => m.length);
+  stockCounts = materials.value.map(m => m.quantity);
+
+  // 订单长度列表和数量列表
+  orderLengths = parts.value.map(p => p.length);
+  orderCounts = parts.value.map(p => p.quantity);
+
+  // 切口宽度
+  cutWidth = Number(cuttingLoss.value) || 0;
 }
 
-function calculate() {
+function calculate(): void {
   if (materials.value.length === 0 || parts.value.length === 0) {
     showToast('请先添加原材料和切割零件');
     return;
   }
 
-  // 开始优化计算
-  const result = optimizeCutting(
-      materials.value,
-      parts.value,
-      Number(cuttingLoss.value) || 0
+  init();
+  cutResult1 = solveCuttingProblem(
+      stockLengths,
+      stockCounts,
+      orderLengths,
+      orderCounts,
+      cutWidth
   );
-
-  plan1.value = result.plan1;
-  plan2.value = result.plan2;
-  plan1UtilizationRate.value = result.plan1Rate;
-  plan2UtilizationRate.value = result.plan2Rate;
-
+  optimizationResult.value = {
+    plans: cutResult1.plans,
+    summary: cutResult1.summary
+  };
+  if(! cutResult1.summary.isOrderFulfilled){
+    showFailToast('订单无法满足');
+    return;
+  }
   showResults.value = true;
-  showToast('计算完成');
+  showSuccessToast('计算完成');
 }
 </script>
 
@@ -397,8 +481,10 @@ body {
 }
 
 .delete-icon {
-  color: #ee0a24;
+  margin: 3.5px 4px 3.5px 8px; /* 上 右 下 左 */
+  vertical-align: middle;
   font-size: 18px;
+  color: #ee0a24;
 }
 
 .action-buttons {
@@ -462,8 +548,56 @@ body {
   font-size: 18px;
 }
 
-.unit-text {
-  color: #969799;
-  font-size: 14px;
+.summary-container {
+  margin-top: 20px;
+  padding: 16px;
+  background-color: #f9f9f9;
+  border-radius: 8px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.summary-title {
+  font-size: 16px;
+  font-weight: bold;
+  color: #323233;
+  margin-bottom: 12px;
+  border-bottom: 1px solid #ebedf0;
+  padding-bottom: 8px;
+}
+
+.summary-content {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.summary-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.item-label {
+  color: #646566;
+}
+
+.item-value {
+  font-weight: 500;
+}
+
+.highlight {
+  color: var(--van-primary-color);
+  font-size: 16px;
+  font-weight: bold;
+}
+
+.success {
+  color: var(--van-success-color);
+  font-weight: bold;
+}
+
+.error {
+  color: var(--van-danger-color);
+  font-weight: bold;
 }
 </style>

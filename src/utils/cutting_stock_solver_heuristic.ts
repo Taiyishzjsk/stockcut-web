@@ -1,4 +1,4 @@
-import { StockCutPlan, CutSummary, CutResult } from "./cutting_stock_types";
+import type { StockCutPlan,  CutResult } from "./cutting_stock_types";
 
 export function solveCuttingProblem(
     stockLengths: number[],
@@ -231,7 +231,7 @@ class StockCuttingSolver {
      */
     hybridOptimized(): [StockUsage[], number] {
         // 第一阶段：使用BFD得到初始解
-        const [initialSolution, initialWaste] = this.bestFitDecreasing();
+        const [initialSolution] = this.bestFitDecreasing();
 
         // 第二阶段：启发式优化 - 交换不同原料棒之间的切割
         const optimizedSolution = [...initialSolution];
