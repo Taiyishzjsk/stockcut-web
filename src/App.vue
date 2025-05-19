@@ -357,29 +357,61 @@ function resetForm(): void {
   showToast('已重置');
 }
 
-function getPlans (plans : StockCutPlan[]) : Solution[] {
+// function getPlans (plans : StockCutPlan[]) : Solution[] {
+//   let temp: Solution[] = [];
+//   for (const plan of plans) {
+//     let str : string = '';
+//     for(let i=0;i<plan.cutLengths.length;i++){
+//       str += `${plan.cutLengths[i]} * ${plan.cutCounts[i]}`;
+//       if(i<plan.cutLengths.length-1){
+//         str += ' + ';
+//       }
+//     }
+//     let solution : Solution = {
+//       length: plan.stockLength,
+//       parts: str,
+//       utilizationRate: plan.avgWaste,
+//       waste: plan.totalWaste,
+//       count: plan.count
+//     };
+//     temp.push(solution);
+//   }
+//   return temp;
+// }
+function getPlans(plans: StockCutPlan[]): Solution[] {
   let temp: Solution[] = [];
   for (const plan of plans) {
-    // 把切割方案改成 长度*数量 + 长度*数量的形式输出
-    let str : string = '';
-    for(let i=0;i<plan.cutLengths.length;i++){
+    // 计算零件总长度
+    let totalPartLength = 0;
+    for (let i = 0; i < plan.cutLengths.length; i++) {
+      totalPartLength += plan.cutLengths[i] * plan.cutCounts[i];
+    }
+
+    // 计算利用率（百分比）
+    const utilizationRate = (totalPartLength / plan.stockLength) * 100;
+
+    // 构造零件描述字符串
+    let str: string = '';
+    for (let i = 0; i < plan.cutLengths.length; i++) {
       str += `${plan.cutLengths[i]} * ${plan.cutCounts[i]}`;
-      if(i<plan.cutLengths.length-1){
+      if (i < plan.cutLengths.length - 1) {
         str += ' + ';
       }
     }
-    let solution : Solution = {
+
+    let solution: Solution = {
       length: plan.stockLength,
       parts: str,
-      utilizationRate: plan.avgWaste,
-      waste: plan.totalWaste,
+      utilizationRate: parseFloat(utilizationRate.toFixed(2)), // 保留两位小数
+      waste: plan.avgWaste,
+      // waste: plan.totalWaste,
       count: plan.count
     };
+
     temp.push(solution);
   }
   return temp;
 }
-
 
 const calculatedPlans = computed<Solution[]>(() => {
   if (!optimizationResult.value) return [];
