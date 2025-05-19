@@ -98,7 +98,7 @@
 
                 <template #tags>
                   <van-tag type="primary" size="medium" round>利用率: {{ solution.utilizationRate }}%</van-tag>
-                  <van-tag type="danger" size="medium" round style="margin-left: 5px">浪费: {{ solution.waste }}mm/根</van-tag>
+                  <van-tag type="danger" size="medium" round style="margin-left: 5px">剩余材料: {{ solution.waste }}mm/根</van-tag>
                 </template>
               </van-card>
 
@@ -134,7 +134,7 @@
               >
                 <template #tags>
                   <van-tag type="primary" size="medium" round>利用率: {{ solution.utilizationRate }}%</van-tag>
-                  <van-tag type="danger" size="medium" round style="margin-left: 5px">浪费: {{ solution.waste }}mm/根</van-tag>
+                  <van-tag type="danger" size="medium" round style="margin-left: 5px">剩余材料: {{ solution.waste }}mm/根</van-tag>
                 </template>
               </van-card>
 
