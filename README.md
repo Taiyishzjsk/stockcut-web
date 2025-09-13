@@ -1,3 +1,3 @@
 # 一维下料问题优化器
 这个网页是用来对一维下料问题进行优化的，适配移动端。
-项目地址；[http://www.tkfyuu.site/]
+项目地址: [http://www.tkfyuu.site/]
